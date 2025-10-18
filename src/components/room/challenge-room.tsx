@@ -10,11 +10,24 @@ import { useRouter } from "next/navigation";
 import { Award, Loader2, Flag } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { currentUser } from "@/lib/data";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 type GameState = "countdown" | "playing" | "between_questions" | "finished";
 
 export function ChallengeRoom({ match: initialMatch }: { match: Match }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [gameState, setGameState] = useState<GameState>("countdown");
   const [match, setMatch] = useState(initialMatch);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -69,8 +82,22 @@ export function ChallengeRoom({ match: initialMatch }: { match: Match }) {
     }, 3000); // Wait 3 seconds before next question or end
   };
 
+  const handleForfeit = () => {
+    const opponent = match.participants.find(p => p.user.id !== currentUser.id);
+    if (opponent) {
+        setMatch(prev => ({ ...prev, winnerId: opponent.user.id }));
+    }
+    setGameState("finished");
+    toast({
+        title: "Match Forfeited",
+        description: "You have surrendered the duel.",
+        variant: "destructive",
+    });
+  };
+
   const winner = match.participants.reduce((prev, current) => (prev.score > current.score) ? prev : current);
   const isDraw = match.participants[0].score === match.participants[1].score;
+  const matchWinner = match.winnerId ? match.participants.find(p => p.user.id === match.winnerId) : winner;
 
   if (gameState === "countdown") {
     return (
@@ -86,7 +113,7 @@ export function ChallengeRoom({ match: initialMatch }: { match: Match }) {
        <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center">
         <Award className="w-24 h-24 text-yellow-400 mb-4" />
         <h1 className="text-4xl font-bold font-headline mb-2">
-            {isDraw ? "It's a Draw!" : `${winner.user.name} Wins!`}
+            {isDraw && !match.winnerId ? "It's a Draw!" : `${matchWinner?.user.name} Wins!`}
         </h1>
         <p className="text-2xl text-muted-foreground mb-8">
             Final Score: {match.participants[0].score} - {match.participants[1].score}
@@ -122,9 +149,27 @@ export function ChallengeRoom({ match: initialMatch }: { match: Match }) {
       )}
 
       <div className="mt-auto flex justify-end">
-        <Button variant="destructive" size="sm">
-            <Flag className="mr-2 h-4 w-4" /> Forfeit
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm">
+              <Flag className="mr-2 h-4 w-4" /> Forfeit
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure you want to forfeit?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. You will lose the match, and your opponent will be declared the winner.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleForfeit}>
+                Confirm Forfeit
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
